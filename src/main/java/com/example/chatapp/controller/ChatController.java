@@ -9,7 +9,7 @@ import com.example.chatapp.repository.UserRepository;
 import com.example.chatapp.repository.MessageRepository;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.*; // Added for Map, HashMap, and ArrayList
+import java.util.*;
 
 @RestController
 @RequestMapping("/api")
@@ -35,34 +35,41 @@ public class ChatController {
         return userRepo.findAll();
     }
 
+    // FIX: now actually persists the message (old code passed forReceiver=true,
+    // which skipped the save block inside ChatService entirely).
     @PostMapping("/messages")
     public ChatMessageResponse sendMessage(@RequestBody ChatMessageRequest request) {
         return chatService.processMessage(
-                request.getSenderId(), 
-                request.getReceiverId(), 
-                request.getMessage(), 
-                true, 
-                java.time.LocalDateTime.now()
+                request.getSenderId(),
+                request.getReceiverId(),
+                request.getMessage()
         );
     }
 
-    // --- THE CLEAN VIEW LOGIC ---
+    // FIX: only return messages where viewerId is actually the sender or the receiver.
+    // The old version returned ALL messages in the system to ANY viewer.
     @GetMapping("/messages/view/{viewerId}")
     public List<Map<String, Object>> getChatForUser(@PathVariable Long viewerId) {
-        // Using messageRepo (matching your constructor variable name)
-        List<Message> allMessages = messageRepo.findAll(); 
+        List<Message> allMessages = messageRepo.findAll();
         List<Map<String, Object>> customView = new ArrayList<>();
 
         for (Message msg : allMessages) {
+            boolean isSender = msg.getSenderId() != null && msg.getSenderId().equals(viewerId);
+            boolean isReceiver = msg.getReceiverId() != null && msg.getReceiverId().equals(viewerId);
+
+            if (!isSender && !isReceiver) {
+                continue; // viewer has nothing to do with this message
+            }
+
             Map<String, Object> entry = new HashMap<>();
             entry.put("senderId", msg.getSenderId());
+            entry.put("receiverId", msg.getReceiverId());
+            entry.put("timestamp", msg.getTimestamp());
 
-            if (msg.getSenderId().equals(viewerId)) {
-                // SENDER VIEW: Show exactly what I typed
+            if (isSender) {
                 entry.put("displayText", msg.getOriginalMessage());
                 entry.put("role", "SENDER");
             } else {
-                // RECEIVER VIEW: Show the translation for me
                 entry.put("displayText", msg.getTranslatedMessage());
                 entry.put("role", "RECEIVER");
             }
