@@ -17,18 +17,24 @@ public class Message {
     private Long chatRoomId;
     private Long senderId;
 
+    // FIX: needed so we can tell who a message was meant for.
+    // Without this, /messages/view/{viewerId} cannot correctly filter conversations.
+    private Long receiverId;
+
     @Column(length = 2000)
     private String originalMessage;
 
-    // ADD THIS: To store the translated text
     @Column(length = 2000)
     private String translatedMessage;
 
     private LocalDateTime timestamp;
 
-    // ADD THIS: This automatically sets the time so you don't get "null"
+    // FIX: only set the timestamp if it hasn't already been set,
+    // otherwise this silently overwrites any timestamp passed in from the service layer.
     @PrePersist
     protected void onCreate() {
-        this.timestamp = LocalDateTime.now();
+        if (this.timestamp == null) {
+            this.timestamp = LocalDateTime.now();
+        }
     }
 }
