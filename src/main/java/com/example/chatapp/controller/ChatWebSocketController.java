@@ -17,30 +17,35 @@ public class ChatWebSocketController {
         this.chatService = c;
     }
 
+    // FIX: was calling processMessage() twice (double translation API calls, double save
+    // risk). Now calls it once and builds the two views (sender/receiver) from that one result.
     @MessageMapping("/chat.send")
     public void send(ChatMessageRequest request) {
-        // 1. Create one timestamp for both calls
-        java.time.LocalDateTime now = java.time.LocalDateTime.now();
-
-        // 2. Pass 'now' as the 5th argument
-        messagingTemplate.convertAndSend(
-            "/topic/chat/" + request.getSenderId(),
-            chatService.processMessage(
-                    request.getSenderId(),
-                    request.getReceiverId(),
-                    request.getMessage(),
-                    false, 
-                    now) // Added 5th argument
+        ChatMessageResponse result = chatService.processMessage(
+                request.getSenderId(),
+                request.getReceiverId(),
+                request.getMessage()
         );
 
-        messagingTemplate.convertAndSend(
-            "/topic/chat/" + request.getReceiverId(),
-            chatService.processMessage(
-                    request.getSenderId(),
-                    request.getReceiverId(),
-                    request.getMessage(),
-                    true, 
-                    now) // Added 5th argument
-        );
+        // Sender sees their own original text
+        ChatMessageResponse senderView = ChatMessageResponse.builder()
+                .senderId(result.getSenderId())
+                .content(result.getOriginalMessage())
+                .originalMessage(result.getOriginalMessage())
+                .translatedMessage(null)
+                .timestamp(result.getTimestamp())
+                .build();
+
+        // Receiver sees the translated text (plus original, if you want to show both)
+        ChatMessageResponse receiverView = ChatMessageResponse.builder()
+                .senderId(result.getSenderId())
+                .content(result.getTranslatedMessage())
+                .originalMessage(result.getOriginalMessage())
+                .translatedMessage(result.getTranslatedMessage())
+                .timestamp(result.getTimestamp())
+                .build();
+
+        messagingTemplate.convertAndSend("/topic/chat/" + request.getSenderId(), senderView);
+        messagingTemplate.convertAndSend("/topic/chat/" + request.getReceiverId(), receiverView);
     }
 }
