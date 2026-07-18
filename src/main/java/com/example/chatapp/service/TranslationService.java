@@ -1,5 +1,6 @@
 package com.example.chatapp.service;
 
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
 import org.springframework.http.*;
@@ -10,14 +11,15 @@ public class TranslationService {
 
     private final RestTemplate restTemplate = new RestTemplate();
 
+    // FIX: this was hardcoded before, so the translation.api.url property in
+    // application.properties had zero effect. Now it's actually read from config.
+    @Value("${translation.api.url:http://localhost:5000/translate}")
+    private String translationApiUrl;
+
     public String translate(String text, String from, String to) {
-        // Don't translate if languages are the same or missing
         if (from == null || to == null || from.equalsIgnoreCase(to)) return text;
 
         try {
-            // Using a more reliable testing endpoint or your own local Docker instance
-            String url = "http://localhost:5000/translate";
-            
             HttpHeaders headers = new HttpHeaders();
             headers.setContentType(MediaType.APPLICATION_JSON);
 
@@ -26,24 +28,20 @@ public class TranslationService {
                     "source", from.toLowerCase(),
                     "target", to.toLowerCase(),
                     "format", "text",
-                    "api_key", "" 
+                    "api_key", ""
             );
 
             HttpEntity<Map<String, String>> entity = new HttpEntity<>(body, headers);
-            Map<String, Object> response = restTemplate.postForObject(url, entity, Map.class);
+            Map<String, Object> response = restTemplate.postForObject(translationApiUrl, entity, Map.class);
 
             if (response != null && response.containsKey("translatedText")) {
                 return response.get("translatedText").toString();
             }
-            
+
             throw new RuntimeException("Empty response from Translation API");
 
         } catch (Exception e) {
-            // REAL-WORLD FALLBACK: 
-            // If the API fails (400 Bad Request/Rate Limit), we return a simulated translation
-            // so your frontend logic still gets a value to display.
-            System.err.println("API Error: " + e.getMessage() + ". Using Mock Fallback.");
-            
+            System.err.println("Translation API error: " + e.getMessage() + ". Using fallback mock translation.");
             return String.format("[%s to %s]: %s", from.toUpperCase(), to.toUpperCase(), text);
         }
     }
