@@ -62,9 +62,14 @@ public class ChatController {
             }
 
             Map<String, Object> entry = new HashMap<>();
+            entry.put("id", msg.getId());
             entry.put("senderId", msg.getSenderId());
             entry.put("receiverId", msg.getReceiverId());
             entry.put("timestamp", msg.getTimestamp());
+            // FIX: always include BOTH texts. The frontend decides which is the
+            // "main" text and which is the small translation note based on role.
+            entry.put("originalMessage", msg.getOriginalMessage());
+            entry.put("translatedMessage", msg.getTranslatedMessage());
 
             if (isSender) {
                 entry.put("displayText", msg.getOriginalMessage());
