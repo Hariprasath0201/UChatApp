@@ -46,6 +46,7 @@ public class ChatService {
 
         return ChatMessageResponse.builder()
                 .senderId(senderId)
+                .receiverId(receiverId)
                 .content(text)
                 .originalMessage(text)
                 .translatedMessage(translated)
