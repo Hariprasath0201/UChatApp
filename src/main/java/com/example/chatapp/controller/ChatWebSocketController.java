@@ -27,18 +27,22 @@ public class ChatWebSocketController {
                 request.getMessage()
         );
 
-        // Sender sees their own original text
+        // Sender sees their own original text as the main content,
+        // but we still include the translation so the UI can show a small preview
+        // of what the other person will read.
         ChatMessageResponse senderView = ChatMessageResponse.builder()
                 .senderId(result.getSenderId())
+                .receiverId(result.getReceiverId())
                 .content(result.getOriginalMessage())
                 .originalMessage(result.getOriginalMessage())
-                .translatedMessage(null)
+                .translatedMessage(result.getTranslatedMessage())
                 .timestamp(result.getTimestamp())
                 .build();
 
         // Receiver sees the translated text (plus original, if you want to show both)
         ChatMessageResponse receiverView = ChatMessageResponse.builder()
                 .senderId(result.getSenderId())
+                .receiverId(result.getReceiverId())
                 .content(result.getTranslatedMessage())
                 .originalMessage(result.getOriginalMessage())
                 .translatedMessage(result.getTranslatedMessage())
