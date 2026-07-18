@@ -4,7 +4,6 @@ import com.example.chatapp.dto.ChatMessageResponse;
 import com.example.chatapp.entity.*;
 import com.example.chatapp.repository.*;
 import org.springframework.stereotype.Service;
-import java.time.LocalDateTime;
 
 @Service
 public class ChatService {
@@ -21,32 +20,36 @@ public class ChatService {
         this.translationService = t;
     }
 
-    public ChatMessageResponse processMessage(Long senderId, Long receiverId, String text, boolean forReceiver, LocalDateTime timestamp) {
+    /**
+     * FIX: This now does exactly ONE translation call and ONE database save per message,
+     * and always persists (the old "forReceiver" flag caused REST-submitted messages to
+     * never be saved at all, and caused the WebSocket path to translate the same text twice).
+     * It returns a single response containing both the original and translated text;
+     * callers (REST controller / WebSocket controller) decide what to show to whom.
+     */
+    public ChatMessageResponse processMessage(Long senderId, Long receiverId, String text) {
         User sender = userRepo.findById(senderId).orElseThrow();
         User receiver = userRepo.findById(receiverId).orElseThrow();
 
         ChatRoom room = chatRoomRepo.findChatRoom(senderId, receiverId)
                 .orElseGet(() -> chatRoomRepo.save(new ChatRoom(null, senderId, receiverId)));
 
-        // Logic: Translation only happens from sender language -> receiver language
         String translated = translationService.translate(text, sender.getLanguage(), receiver.getLanguage());
 
-        if (!forReceiver) {
-            // Save to database only once (when processing for the sender side)
-            Message message = new Message();
-            message.setChatRoomId(room.getId());
-            message.setSenderId(senderId);
-            message.setOriginalMessage(text);
-            message.setTranslatedMessage(translated);
-            message.setTimestamp(timestamp != null ? timestamp : LocalDateTime.now());
-            messageRepo.save(message);
+        Message message = new Message();
+        message.setChatRoomId(room.getId());
+        message.setSenderId(senderId);
+        message.setReceiverId(receiverId);
+        message.setOriginalMessage(text);
+        message.setTranslatedMessage(translated);
+        Message saved = messageRepo.save(message);
 
-            // SENDER SIDE: Content is the original text
-            return new ChatMessageResponse(senderId, text, text, null, timestamp);
-        } else {
-            // RECEIVER SIDE: Content is original + translation
-            // Similar to how WhatsApp "Translate" features look
-            return new ChatMessageResponse(senderId, translated, text, translated, timestamp);
-        }
+        return ChatMessageResponse.builder()
+                .senderId(senderId)
+                .content(text)
+                .originalMessage(text)
+                .translatedMessage(translated)
+                .timestamp(saved.getTimestamp())
+                .build();
     }
 }
